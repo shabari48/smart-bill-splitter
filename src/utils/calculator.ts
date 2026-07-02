@@ -77,8 +77,22 @@ export function computePersonConsumption(
         const gstInfo = gstMap.get(assignment.foodItemId);
         const foodItem = foodItems.find((f) => f.id === assignment.foodItemId);
         if (gstInfo && foodItem) {
-          const shareCount = assignment.personIds.length;
-          const share = gstInfo.finalCost / shareCount;
+          const hasQuantities = assignment.quantities && Object.keys(assignment.quantities).length > 0;
+          let share = 0;
+
+          if (hasQuantities) {
+            const totalQuantity = assignment.personIds.reduce((sum, pId) => sum + (assignment.quantities?.[pId] || 1), 0);
+            if (totalQuantity > 0) {
+              const personQty = assignment.quantities?.[person.id] || 1;
+              share = (personQty / totalQuantity) * gstInfo.finalCost;
+            } else {
+              share = gstInfo.finalCost / assignment.personIds.length;
+            }
+          } else {
+            const shareCount = assignment.personIds.length;
+            share = gstInfo.finalCost / shareCount;
+          }
+
           items.push({
             itemName: foodItem.name || 'Unnamed',
             share,

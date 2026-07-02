@@ -16,6 +16,7 @@ export interface Person {
 export interface FoodAssignment {
   foodItemId: string;
   personIds: string[];
+  quantities?: Record<string, number>;
 }
 
 export interface BillDetails {

@@ -11,11 +11,15 @@ interface Props {
 function MultiSelect({
   people,
   selectedIds,
+  quantities,
   onToggle,
+  onUpdateQuantity,
 }: {
   people: Person[];
   selectedIds: string[];
+  quantities: Record<string, number>;
   onToggle: (personId: string) => void;
+  onUpdateQuantity: (personId: string, qty: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -65,23 +69,40 @@ function MultiSelect({
       {open && (
         <div className="absolute z-20 mt-1 w-full bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl shadow-lg py-1 animate-slide-down max-h-48 overflow-y-auto">
           {people.map((person) => (
-            <label
+            <div
               key={person.id}
-              className="flex items-center gap-3 px-3 py-2 hover:bg-surface-50 dark:hover:bg-surface-700/50 cursor-pointer transition-colors"
+              className="flex items-center gap-3 px-3 py-2 hover:bg-surface-50 dark:hover:bg-surface-700/50 transition-colors"
             >
-              <input
-                type="checkbox"
-                checked={selectedIds.includes(person.id)}
-                onChange={() => onToggle(person.id)}
-                className="w-4 h-4 rounded border-surface-300 dark:border-surface-600 text-primary-600 focus:ring-primary-500"
-              />
-              <span className="text-sm text-surface-700 dark:text-surface-300">
-                {person.name || 'Unnamed'}
-              </span>
-              {person.hasCoupon && (
-                <span className="badge-success text-[10px] ml-auto">🎟️</span>
+              <label className="flex items-center gap-3 cursor-pointer flex-1">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(person.id)}
+                  onChange={() => onToggle(person.id)}
+                  className="w-4 h-4 rounded border-surface-300 dark:border-surface-600 text-primary-600 focus:ring-primary-500"
+                />
+                <span className="text-sm text-surface-700 dark:text-surface-300 flex-1">
+                  {person.name || 'Unnamed'}
+                </span>
+                {person.hasCoupon && (
+                  <span className="badge-success text-[10px] ml-auto mr-2">🎟️</span>
+                )}
+              </label>
+
+              {selectedIds.includes(person.id) && (
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-surface-400">Qty:</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={quantities[person.id] !== undefined ? quantities[person.id] : 1}
+                    onChange={(e) => onUpdateQuantity(person.id, parseFloat(e.target.value) || 0)}
+                    className="w-16 input-field !py-1 !px-2 !text-xs text-center"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
               )}
-            </label>
+            </div>
           ))}
         </div>
       )}
@@ -95,41 +116,71 @@ export default function FoodAssignmentSection({ foodItems, people, assignments, 
     return found ? found.personIds : [];
   };
 
+  const getQuantities = (foodItemId: string): Record<string, number> => {
+    const found = assignments.find((a) => a.foodItemId === foodItemId);
+    return found?.quantities || {};
+  };
+
   const togglePerson = (foodItemId: string, personId: string) => {
     const existing = assignments.find((a) => a.foodItemId === foodItemId);
     let newAssignments: FoodAssignment[];
 
     if (existing) {
-      const newPersonIds = existing.personIds.includes(personId)
+      const isCurrentlySelected = existing.personIds.includes(personId);
+      const newPersonIds = isCurrentlySelected
         ? existing.personIds.filter((id) => id !== personId)
         : [...existing.personIds, personId];
+
+      const newQuantities = { ...(existing.quantities || {}) };
+      if (isCurrentlySelected) {
+        delete newQuantities[personId];
+      } else {
+        newQuantities[personId] = 1;
+      }
 
       if (newPersonIds.length === 0) {
         newAssignments = assignments.filter((a) => a.foodItemId !== foodItemId);
       } else {
         newAssignments = assignments.map((a) =>
-          a.foodItemId === foodItemId ? { ...a, personIds: newPersonIds } : a
+          a.foodItemId === foodItemId ? { ...a, personIds: newPersonIds, quantities: newQuantities } : a
         );
       }
     } else {
-      newAssignments = [...assignments, { foodItemId, personIds: [personId] }];
+      newAssignments = [...assignments, { foodItemId, personIds: [personId], quantities: { [personId]: 1 } }];
     }
 
     onChange(newAssignments);
   };
 
+  const updateQuantity = (foodItemId: string, personId: string, qty: number) => {
+    onChange(
+      assignments.map((a) => {
+        if (a.foodItemId === foodItemId) {
+          return {
+            ...a,
+            quantities: { ...(a.quantities || {}), [personId]: qty },
+          };
+        }
+        return a;
+      })
+    );
+  };
+
   const assignAll = (foodItemId: string) => {
     const allIds = people.map((p) => p.id);
     const existing = assignments.find((a) => a.foodItemId === foodItemId);
+    
+    const newQuantities: Record<string, number> = {};
+    allIds.forEach(id => newQuantities[id] = 1);
 
     if (existing) {
       onChange(
         assignments.map((a) =>
-          a.foodItemId === foodItemId ? { ...a, personIds: allIds } : a
+          a.foodItemId === foodItemId ? { ...a, personIds: allIds, quantities: newQuantities } : a
         )
       );
     } else {
-      onChange([...assignments, { foodItemId, personIds: allIds }]);
+      onChange([...assignments, { foodItemId, personIds: allIds, quantities: newQuantities }]);
     }
   };
 
@@ -189,7 +240,9 @@ export default function FoodAssignmentSection({ foodItems, people, assignments, 
             <MultiSelect
               people={people}
               selectedIds={getAssignment(item.id)}
+              quantities={getQuantities(item.id)}
               onToggle={(personId) => togglePerson(item.id, personId)}
+              onUpdateQuantity={(personId, qty) => updateQuantity(item.id, personId, qty)}
             />
           </div>
         ))}
