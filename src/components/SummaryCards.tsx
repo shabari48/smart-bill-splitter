@@ -58,7 +58,7 @@ export default function SummaryCards({ result, bill }: Props) {
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         <SummaryCard
           label="Grand Total"
-          value={formatINR(bill.grandTotal)}
+          value={formatINR(result.actualRestaurantPayment)}
           color="primary"
           icon={
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

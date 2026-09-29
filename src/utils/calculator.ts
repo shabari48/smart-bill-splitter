@@ -10,43 +10,22 @@ import type {
   CalculationResult,
 } from '../types';
 
-/**
- * Compute total GST from bill details.
- */
-export function computeTotalGST(bill: BillDetails): number {
-  return bill.grandTotal - bill.subtotal;
+export function computeTotalGST(foodItems: FoodItem[], bill: BillDetails): number {
+  return foodItems.reduce((sum, item) => sum + (item.basePrice * (bill.gstPercentage || 0) / 100), 0);
 }
 
-/**
- * Compute the actual restaurant payment.
- */
-export function computeActualPayment(bill: BillDetails): number {
-  return bill.grandTotal;
+export function computeActualPayment(foodItems: FoodItem[], bill: BillDetails): number {
+  const baseTotal = foodItems.reduce((sum, item) => sum + item.basePrice, 0);
+  const gst = computeTotalGST(foodItems, bill);
+  return baseTotal + gst + (bill.roundOff || 0);
 }
 
-/**
- * Compute GST breakdown per food item.
- * Each item's GST is proportional to its share of the subtotal.
- */
 export function computeItemGSTBreakdown(
   foodItems: FoodItem[],
   bill: BillDetails
 ): ItemGSTBreakdown[] {
-  const totalGST = computeTotalGST(bill);
-  const subtotal = bill.subtotal;
-
-  if (subtotal === 0) {
-    return foodItems.map((item) => ({
-      itemId: item.id,
-      itemName: item.name || 'Unnamed',
-      basePrice: item.basePrice,
-      gst: 0,
-      finalCost: item.basePrice,
-    }));
-  }
-
   return foodItems.map((item) => {
-    const itemGST = (item.basePrice / subtotal) * totalGST;
+    const itemGST = item.basePrice * ((bill.gstPercentage || 0) / 100);
     return {
       itemId: item.id,
       itemName: item.name || 'Unnamed',
@@ -77,21 +56,8 @@ export function computePersonConsumption(
         const gstInfo = gstMap.get(assignment.foodItemId);
         const foodItem = foodItems.find((f) => f.id === assignment.foodItemId);
         if (gstInfo && foodItem) {
-          const hasQuantities = assignment.quantities && Object.keys(assignment.quantities).length > 0;
-          let share = 0;
-
-          if (hasQuantities) {
-            const totalQuantity = assignment.personIds.reduce((sum, pId) => sum + (assignment.quantities?.[pId] || 1), 0);
-            if (totalQuantity > 0) {
-              const personQty = assignment.quantities?.[person.id] || 1;
-              share = (personQty / totalQuantity) * gstInfo.finalCost;
-            } else {
-              share = gstInfo.finalCost / assignment.personIds.length;
-            }
-          } else {
-            const shareCount = assignment.personIds.length;
-            share = gstInfo.finalCost / shareCount;
-          }
+          const shareCount = assignment.personIds.length;
+          const share = gstInfo.finalCost / shareCount;
 
           items.push({
             itemName: foodItem.name || 'Unnamed',
@@ -232,8 +198,8 @@ export function calculateBillSplit(
   people: Person[],
   assignments: FoodAssignment[]
 ): CalculationResult {
-  const totalGST = computeTotalGST(bill);
-  const actualRestaurantPayment = computeActualPayment(bill);
+  const totalGST = computeTotalGST(foodItems, bill);
+  const actualRestaurantPayment = computeActualPayment(foodItems, bill);
 
   // Step 1: GST breakdown per item
   const itemGSTBreakdown = computeItemGSTBreakdown(foodItems, bill);
@@ -249,7 +215,7 @@ export function calculateBillSplit(
 
   // Step 4: Calculate totals
   const totalCollected = settlement.reduce((sum, s) => sum + s.finalPayable, 0);
-  const isBalanced = Math.abs(actualRestaurantPayment - totalCollected - totalCouponsUsed) < 0.5;
+  const isBalanced = Math.abs(actualRestaurantPayment - totalCollected - totalCouponsUsed - (bill.roundOff || 0)) < 0.5;
 
   return {
     itemGSTBreakdown,
@@ -264,11 +230,8 @@ export function calculateBillSplit(
   };
 }
 
-/**
- * Generate a shareable settlement text summary.
- */
 export function generateSettlementText(
-  settlement: SettlementEntry[],
+  result: CalculationResult,
   bill: BillDetails
 ): string {
   const lines: string[] = [];
@@ -280,25 +243,22 @@ export function generateSettlementText(
   }
   lines.push('─'.repeat(30));
 
-  for (const entry of settlement) {
+  for (const entry of result.settlement) {
     lines.push(`${entry.personName} → ₹${entry.finalPayable.toFixed(2)}`);
   }
 
   lines.push('─'.repeat(30));
-  lines.push(`Grand Total: ₹${bill.grandTotal.toFixed(2)}`);
+  lines.push(`Grand Total: ₹${result.actualRestaurantPayment.toFixed(2)}`);
 
   return lines.join('\n');
 }
 
-/**
- * Generate CSV data for export.
- */
 export function generateCSV(
-  settlement: SettlementEntry[],
+  result: CalculationResult,
   bill: BillDetails
 ): string {
   const headers = ['Person', 'Raw Cost', 'Coupon Deduction', 'Extra Deduction', 'Final Payable'];
-  const rows = settlement.map((s) => [
+  const rows = result.settlement.map((s) => [
     s.personName,
     s.rawCost.toFixed(2),
     s.couponDeduction.toFixed(2),
@@ -312,7 +272,7 @@ export function generateCSV(
     headers.join(','),
     ...rows.map((r) => r.join(',')),
     '',
-    `Grand Total,${bill.grandTotal.toFixed(2)}`,
+    `Grand Total,${result.actualRestaurantPayment.toFixed(2)}`,
   ];
 
   return csvLines.join('\n');

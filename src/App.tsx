@@ -13,8 +13,8 @@ import SummaryCards from './components/SummaryCards';
 
 const defaultBill: BillDetails = {
   restaurantName: '',
-  subtotal: 0,
-  grandTotal: 0,
+  gstPercentage: 5,
+  roundOff: 0,
 };
 
 function App() {
@@ -47,7 +47,7 @@ function App() {
     }
   }, [bill, foodItems, people, assignments]);
 
-  const canCalculate = foodItems.length > 0 && people.length > 0 && assignments.length > 0 && bill.subtotal > 0;
+  const canCalculate = foodItems.length > 0 && people.length > 0 && assignments.length > 0;
 
   const handleReset = useCallback(() => {
     if (window.confirm('Are you sure you want to reset all data? This cannot be undone.')) {
@@ -61,7 +61,7 @@ function App() {
 
   const handleCopy = useCallback(() => {
     if (!result) return;
-    const text = generateSettlementText(result.settlement, bill);
+    const text = generateSettlementText(result, bill);
     navigator.clipboard.writeText(text).then(() => {
       setCopyFeedback('Copied!');
       setTimeout(() => setCopyFeedback(''), 2000);
@@ -73,7 +73,7 @@ function App() {
 
   const handleExportCSV = useCallback(() => {
     if (!result) return;
-    const csv = generateCSV(result.settlement, bill);
+    const csv = generateCSV(result, bill);
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -169,7 +169,7 @@ function App() {
       {/* Main content */}
       <main className="relative max-w-4xl mx-auto px-4 py-6 space-y-5">
         {/* Input sections */}
-        <BillDetailsForm bill={bill} onChange={setBill} />
+        <BillDetailsForm bill={bill} foodItems={foodItems} onChange={setBill} />
         <FoodItemsTable items={foodItems} onChange={handleFoodItemsChange} />
         <PeopleTable people={people} onChange={handlePeopleChange} />
         <FoodAssignmentSection

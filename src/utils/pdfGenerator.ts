@@ -29,9 +29,9 @@ export function generatePDF(result: CalculationResult, bill: BillDetails) {
   
   const summaryHeaders = [['Metric', 'Amount (Rs.)']];
   const summaryBody = [
-    ['Subtotal', bill.subtotal.toFixed(2)],
-    ['Total GST (Difference)', result.totalGST.toFixed(2)],
-    ['Grand Total', bill.grandTotal.toFixed(2)],
+    ['GST Percentage', `${bill.gstPercentage || 0}%`],
+    ['Total GST', result.totalGST.toFixed(2)],
+    ['Round Off', (bill.roundOff || 0).toFixed(2)],
     ['Total Coupons Used', result.totalCouponsUsed.toFixed(2)],
     ['Actual Restaurant Payment', result.actualRestaurantPayment.toFixed(2)],
     ['Total Collected from People', result.totalCollected.toFixed(2)],

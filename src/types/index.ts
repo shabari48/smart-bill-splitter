@@ -16,13 +16,12 @@ export interface Person {
 export interface FoodAssignment {
   foodItemId: string;
   personIds: string[];
-  quantities?: Record<string, number>;
 }
 
 export interface BillDetails {
   restaurantName: string;
-  subtotal: number;
-  grandTotal: number;
+  gstPercentage: number;
+  roundOff: number;
 }
 
 export interface ItemGSTBreakdown {
